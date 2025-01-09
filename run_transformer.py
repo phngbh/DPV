@@ -4,52 +4,46 @@ import torch.nn.functional as F
 from torch.optim import Adam
 from torch.nn import MSELoss
 from torch.utils.data import DataLoader, TensorDataset
-from transformers import BertModel, BertConfig
+from transformers import AutoModel, AutoConfig
 from sklearn.metrics import mean_squared_error
 import gc
 import numpy as np
 import argparse
 from datetime import timedelta, datetime
+import yaml
 
 print('Start running script')
 print('Starting time: ' + str(datetime.now().time()))
 
 # Parse arguments
 parser = argparse.ArgumentParser(description='Arguments for running script')
-parser.add_argument('--data', type=str, help='File directory to the processed input data')
-parser.add_argument('--target', type=str, help='File directory to the target data')
-parser.add_argument('--time_seq', type=str, help='File directory to the time sequence')
-parser.add_argument('--train_size', type=int, help='Training size')
-parser.add_argument('--val_size', type=int, help='Validation size')
-parser.add_argument('--dropout', type=int, help='Fraction of parameters to drop out')
-parser.add_argument('--hidden_dim', type=int, help='Hidden dimension of the LSTM embedding layer')
-parser.add_argument('--lstm_layers', type=int, help='Number of LSTM layers in the LSTM embedding layer')
-parser.add_argument('--embedding_dim', type=int, help='Dimension of the embedding (to be compatible with the embedding dimension of the LLM)')
-parser.add_argument('--lr', type=float, help='Learning rate during optimization')
-parser.add_argument('--weight_decay', type=float, help='A regularization factor')
-parser.add_argument('--epochs', type=int, help='Number of epochs')
-parser.add_argument('--patience', type=int, help='Number of epochs to wait before early stopping during optimization')
-parser.add_argument('--res_dir', type=str, help='File directory to store the results')
-parser.add_argument('--suffix', type=str, help='Name suffix of the results')
-
+parser.add_argument('--config', type=str, help='Path to the configuration file')
 args = parser.parse_args()
 
+# Load configuration
+with open(args.config, 'r') as f:
+    config = yaml.safe_load(f)['run_transformer']
+
 # Set hyperparameters
-data = args.data
-target = args.target
-time_seq = args.time_seq
-train_size = args.train_size
-val_size = args.val_size
-dropout = args.dropout
-hidden_dim = args.hidden_dim
-lstm_layers = args.lstm_layers
-embedding_dim = args.embedding_dim
-lr = args.lr
-weight_decay = args.weight_decay
-epochs = args.epochs
-patience = args.patience
-res_dir = args.res_dir
-suffix = args.suffix
+data = config['data']
+target = config['target']
+time_seq = config['time_seq']
+train_size = config['train_size']
+val_size = config['val_size']
+dropout = config['dropout']
+hidden_dim = config['hidden_dim']
+lstm_layers = config['lstm_layers']
+lr = config['lr']
+weight_decay = config['weight_decay']
+epochs = config['epochs']
+patience = config['patience']
+res_dir = config['res_dir']
+suffix = config['suffix']
+pretrained_model = config['pretrained_model']
+
+# Retrieve the hidden size from the model's configuration
+config = AutoConfig.from_pretrained(pretrained_model)
+embedding_dim = config.hidden_size
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)
@@ -134,41 +128,41 @@ class LSTMEmbeddingLayer(nn.Module):
         return embeddings
 
 # Main functions
-class BERTwithLinearEmbedding(nn.Module):
-    def __init__(self, input_dim, embedding_dim, output_dim=1, dropout):
-        super(BERTwithLinearEmbedding, self).__init__()
+class TransformerWithLinearEmbedding(nn.Module):
+    def __init__(self, input_dim, embedding_dim, dropout, output_dim=1):
+        super(TransformerWithLinearEmbedding, self).__init__()
         self.embedding = LinearEmbeddingLayer(input_dim, embedding_dim, dropout)
-        self.bert = BertModel.from_pretrained('bert-base-uncased', output_attentions=True)
+        self.transformer = AutoModel.from_pretrained(pretrained_model, output_attentions=True)
         self.dropout = nn.Dropout(dropout)
         # Assuming a regression task; change output features for classification
-        self.regressor = nn.Linear(self.bert.config.hidden_size, output_dim)
+        self.regressor = nn.Linear(self.transformer.config.hidden_size, output_dim)
         
     def forward(self, X, attention_mask=None): # X expected shape: [batch_size, seq_length, input_dim]
         # Apply the embedding layer
         X_embeds = self.embedding(X, attention_mask)  # [batch_size, seq_length, output_embedding_dim]
 
-        # Process through BERT
-        outputs = self.bert(inputs_embeds=X_embeds, attention_mask=attention_mask)
+        # Process through LLM
+        outputs = self.transformer(inputs_embeds=X_embeds, attention_mask=attention_mask)
         pooled_output = outputs.pooler_output # [batch_size, hidden_size]
         attentions = outputs.attentions  # Extract attention weights
 
         # Apply regression layer
         return self.regressor(self.dropout(pooled_output)), attentions
 
-class BERTwithLSTMEmbedding(nn.Module):
+class TransformerWithLSTMEmbedding(nn.Module):
     def __init__(self, input_dim, hidden_dim, lstm_layers, embedding_dim, global_max_length, output_dim=1):
-        super(BERTwithLSTMEmbedding, self).__init__()
+        super(TransformerWithLSTMEmbedding, self).__init__()
         self.embedding = LSTMEmbeddingLayer(input_dim, hidden_dim, lstm_layers, embedding_dim, global_max_length)
-        self.bert = BertModel.from_pretrained('bert-base-uncased')
+        self.transformer = AutoModel.from_pretrained(pretrained_model, output_attentions=True)
         # Assuming a regression task; change output features for classification
-        self.regressor = nn.Linear(self.bert.config.hidden_size, output_dim)
+        self.regressor = nn.Linear(self.transformer.config.hidden_size, output_dim)
         
     def forward(self, X, lengths, attention_mask=None): # X expected shape: [batch_size, seq_length, input_dim]
         # Apply the embedding layer
         X_embeds = self.embedding(X, lengths)  # [batch_size, seq_length, output_embedding_dim]
 
-        # Process through BERT
-        outputs = self.bert(inputs_embeds=X_embeds, attention_mask=attention_mask)
+        # Process through LLM
+        outputs = self.transformer(inputs_embeds=X_embeds, attention_mask=attention_mask)
         pooled_output = outputs.pooler_output # [batch_size, hidden_size]
 
         # Apply regression layer
@@ -187,8 +181,8 @@ epochs = epochs
 patience = patience
 
 # Instantiate the model
-model = BERTwithLinearEmbedding(input_dim = input_dim, embedding_dim = embedding_dim, output_dim=output_dim, dropout = dropout)
-#model = BERTwithLSTMEmbedding(input_dim = input_dim, hidden_dim = hidden_dim, lstm_layers = lstm_layers, embedding_dim = embedding_dim, output_dim=output_dim, global_max_length=global_max_length)
+model = TransformerWithLinearEmbedding(input_dim = input_dim, embedding_dim = embedding_dim, output_dim=output_dim, dropout = dropout)
+#model = TransformerWithLinearEmbedding(input_dim = input_dim, hidden_dim = hidden_dim, lstm_layers = lstm_layers, embedding_dim = embedding_dim, output_dim=output_dim, global_max_length=global_max_length)
 model.to(device)
 
 print("Start training")

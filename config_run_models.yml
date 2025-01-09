@@ -1,0 +1,38 @@
+run_lstm:
+  data: "path/to/data.pt"
+  target: "path/to/target.pt"
+  time_seq: "path/to/time_seq.pt"
+  train_size: 1000
+  val_size: 200
+  dropout: 0.5
+  hidden_dim: 128
+  lr: 0.001
+  weight_decay: 0.0001
+  epochs: 50
+  patience: 10
+  res_dir: "path/to/results/"
+  suffix: "lstm"
+
+run_xgb:
+  data: "path/to/data.pt"
+  target: "path/to/target.pt"
+  train_size: 1000
+  res_dir: "path/to/results/"
+  suffix: "xgb"
+
+run_transformer:
+  data: "path/to/data.pt"
+  target: "path/to/target.pt"
+  time_seq: "path/to/time_seq.pt"
+  train_size: 1000
+  val_size: 200
+  dropout: 0.5
+  hidden_dim: 128
+  lstm_layers: 2
+  lr: 0.001
+  weight_decay: 0.0001
+  epochs: 50
+  patience: 10
+  res_dir: "path/to/results/"
+  suffix: "transformer"
+  pretrained_model: "bert-base-uncased"

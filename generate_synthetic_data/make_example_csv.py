@@ -6,19 +6,41 @@ from sklearn.preprocessing import MinMaxScaler
 import warnings
 import torch
 import gc
+import argparse
+
+# Parse arguments
+parser = argparse.ArgumentParser(description='Arguments for make_example_csv')
+parser.add_argument('--config', type=str, help='Path to the configuration file')
+args = parser.parse_args()
+
+# Load configuration
+with open(args.config, 'r') as f:
+    config = yaml.safe_load(f)['make_example_csv']
+
+# Set hyperparameters
+data_dir = config['data_dir']
+columns = config['columns']
+num_col_names = config['num_col_names']
+mis_num_col_names = config['mis_num_col_names']
+dis_col_names = config['dis_col_names']
+mis_dis_col_names = config['mis_dis_col_names']
+pat_inf = config['pat_inf']
+time_seq = config['time_seq']
+res_dir = config['res_dir']
 
 # Extract column names
-columns = np.load('/home/phong.nguyen/data_columns.npy', allow_pickle = True)
-search_string = "_missing"
-m_indices = [index for index, element in enumerate(columns[92:701]) if search_string in element]
-nm_indices = list(set(list(range(609))) - set(m_indices))
-columns_discrete_missing = [element for index, element in enumerate(columns[92:701]) if search_string in element]
-columns_discrete = [element for index, element in enumerate(columns[92:701]) if index in nm_indices]
-columns_numeric = columns[1:92]
-columns_numeric_missing = columns[-91:]
+columns = np.load(columns, allow_pickle = True)
+num_ind = [index for index, element in enumerate(columns) if element in num_col_names]
+num_col_names = columns[num_ind]
+mis_num_ind = [index for index, element in enumerate(columns) if element in mis_num_col_names]
+mis_num_col_names = columns[mis_num_ind]
+dis_ind = [index for index, element in enumerate(columns) if element in dis_col_names]
+dis_col_names = columns[dis_ind]
+mis_dis_ind = [index for index, element in enumerate(columns) if element in mis_dis_col_names]
+mis_dis_col_names = columns[mis_dis_ind]
 
-patient_info = np.load('/home/phong.nguyen/patient_info.npy', allow_pickle = True)
-time = np.load('/home/phong.nguyen/time_sequence.npy', allow_pickle = True)
+patient_info = np.load(pat_inf, allow_pickle = True)
+time = np.load(time_seq, allow_pickle = True)
 
 # Make duplicate rows in patient info
 new_pat_info = np.repeat(patient_info, time, axis=0)
@@ -57,27 +79,27 @@ for original_id, new_id in id_mapping.items():
     selected_pat_info_new[selected_pat_info_new[:, 0] == original_id, 0] = new_id
     
 # Load numeric data
-numeric_data = np.load('/home/phong.nguyen/reconstructed_numeric_data.npy', allow_pickle = True)
+numeric_data = np.load(data_dir + 'reconstructed_numeric_data.npy', allow_pickle = True)
 time_column = numeric_data[selected_indices,0]
 numeric_data = numeric_data[:,-91:]
-numeric_data_missing = np.load('/home/phong.nguyen/reconstructed_missing.npy', allow_pickle = True)
+numeric_data_missing = np.load(data_dir + 'reconstructed_missing.npy', allow_pickle = True)
 numeric_data = np.where(numeric_data_missing == 1, np.nan, numeric_data)
 numeric_data = numeric_data[selected_indices]
 
 # Load discrete data
-discrete_data = np.load('/home/phong.nguyen/reconstructed_discrete_data_non_missing.npy', allow_pickle = True)
+discrete_data = np.load(data_dir + 'reconstructed_discrete_data_non_missing.npy', allow_pickle = True)
 discrete_data = discrete_data[selected_indices]
-discrete_data_missing = np.load('/home/phong.nguyen/reconstructed_discrete_data_missing.npy', allow_pickle = True)
+discrete_data_missing = np.load(data_dir + 'reconstructed_discrete_data_missing.npy', allow_pickle = True)
 discrete_data_missing = discrete_data_missing[selected_indices]
 
 # Concatenate
 combined_data = np.concatenate((time_column.T,selected_pat_info_new, numeric_data, discrete_data, discrete_data_missing), axis=1)
 
 # Create column names
-column_names = ['Time','PID','Center'] + list(columns_numeric) + list(columns_discrete) + list(columns_discrete_missing) 
+column_names = ['Time','PID','Center'] + list(num_col_names) + list(dis_col_names) + list(mis_dis_col_names) 
 
 # Convert the NumPy array to a Pandas DataFrame with column names
 df = pd.DataFrame(combined_data, columns=column_names)
 
 # Save data
-df.to_csv('reconstructed_sub_data.csv', index=False)
+df.to_csv(res_dir + 'reconstructed_sub_data.csv', index=False)

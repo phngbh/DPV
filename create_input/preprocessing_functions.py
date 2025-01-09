@@ -506,21 +506,21 @@ def preprocessing_data(data, feature_info, mean_mode, result_dir, suffix):
             pat_inf_arr.append(patient_info)
         
         # Save each batch of 1000 samples
-        if 0 < count < 82001 and count % 1000 == 0: # The iteration # divided by 1000
-            # if count == 10000:
-            #     # Reset the list
-            #     dataX = []
-            #     pat_inf_arr = []
-            # else:
-            # Save data batch
-            dataX = np.array(dataX, dtype=object)
-            np.save('/home/phong.nguyen/processed_data/processed_' + str(count) + ".npy", dataX)
-            pat_inf_arr = np.array(pat_inf_arr, dtype=object)
-            np.save('/home/phong.nguyen/processed_data/patient_info' + str(count) + '.npy', pat_inf_arr)
+        # if 0 < count < 82001 and count % 1000 == 0: # The iteration # divided by 1000
+        #     # if count == 10000:
+        #     #     # Reset the list
+        #     #     dataX = []
+        #     #     pat_inf_arr = []
+        #     # else:
+        #     # Save data batch
+        #     dataX = np.array(dataX, dtype=object)
+        #     np.save('/home/phong.nguyen/processed_data/processed_' + str(count) + ".npy", dataX)
+        #     pat_inf_arr = np.array(pat_inf_arr, dtype=object)
+        #     np.save('/home/phong.nguyen/processed_data/patient_info' + str(count) + '.npy', pat_inf_arr)
 
-            # Reset the list
-            dataX = []
-            pat_inf_arr = []
+        #     # Reset the list
+        #     dataX = []
+        #     pat_inf_arr = []
             
         count = count + 1
 
@@ -576,42 +576,6 @@ def data_padding(data, max_seq_len):
 
     return output, time
 
-def make_padding_mask(padded_data, time_seq, device):
-    """
-    Analyse zero-padded data and output the padding mask  
-    
-    Parameters
-    ----------
-    padded_data : array-like
-        Zero-padded data, with sample IDs in the first columns.
-    time_seq: vector
-        Vector of origianl sequence length
-    
-    Returns
-    -------
-    padded data without IDs and padding mask
-    """
-    
-    #new_data = padded_data[:,:,1:].to(device)
-    pid = padded_data[:,0,0].cpu().numpy().astype(int)
-    seq_len = time_seq[pid]
-    padding_mask = torch.zeros((padded_data.shape[0], padded_data.shape[1], padded_data.shape[2]-1)).to(device)
-    for i in range(padding_mask.shape[0]):
-        n = seq_len[i]
-        padding_mask[i,:n,:] = 1
-    
-    return padding_mask
-
-def custom_loss_numeric(predicted, original, padding_mask):
-    loss = torch.sum(padding_mask * torch.square(predicted - original)) / torch.sum(padding_mask)
-    return loss
-
-def custom_loss_discrete(predicted, original, padding_mask):
-    bce_loss = -torch.sum(
-        padding_mask * (original * torch.log(predicted + 1e-08) +
-                      (1 - original) * torch.log(1 - predicted + 1e-08))
-    ) / torch.sum(padding_mask)
-    return bce_loss
 
 
 def make_case_control(data, target_var, case_val, min_visits):

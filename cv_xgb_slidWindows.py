@@ -9,6 +9,23 @@ import gc
 import numpy as np
 import xgboost as xgb
 from sklearn.metrics import mean_squared_error as MSE
+import argparse 
+import yaml 
+
+# Parse arguments
+parser = argparse.ArgumentParser(description='Arguments for running script')
+parser.add_argument('--config', type=str, help='Path to the configuration file')
+args = parser.parse_args()
+
+# Load configuration
+with open(args.config, 'r') as f:
+    config = yaml.safe_load(f)['cv_xgb_slidWindows']
+
+# Set hyperparameters
+data = config['data']
+target = config['target']
+res_dir = config['res_dir']
+suffix = config['suffix']
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -21,8 +38,8 @@ def cross_validation(last_pos = [0,1,2,3,4]):
         print('Last position: ',i)
         print("...Load data and set up input")
         # Load data
-        X = torch.load('/home/phong.nguyen/data_subset_hba1c_long_full10_' + str(i) + '.pth')
-        y = torch.load('/home/phong.nguyen/target_subset_hba1c_long_full10_' + str(i) + '.pth')
+        X = torch.load(data + str(i) + '.pth')
+        y = torch.load(target + str(i) + '.pth')
         
         # Remove the first 4 rows (0s)
         X = X[:,4:,:]
@@ -90,7 +107,7 @@ def cross_validation(last_pos = [0,1,2,3,4]):
     return result_loss, result_corr
 
 loss, corr = cross_validation()
-np.save("result_xgb_far_loss.npy", loss.cpu().numpy())
-np.savetxt("result_xgb_far_loss.csv", loss.cpu().numpy(), delimiter=",")
-np.save("result_xgb_far_corr.npy", corr.cpu().numpy())
-np.savetxt("result_xgb_far_corr.csv", corr.cpu().numpy(), delimiter=",")
+np.save(res_dir + "result_xgb_far_loss.npy", loss.cpu().numpy())
+np.savetxt(res_dir + "result_xgb_far_loss.csv", loss.cpu().numpy(), delimiter=",")
+np.save(res_dir + "result_xgb_far_corr.npy", corr.cpu().numpy())
+np.savetxt(res_dir + "result_xgb_far_corr.csv", corr.cpu().numpy(), delimiter=",")

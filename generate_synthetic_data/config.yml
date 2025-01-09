@@ -1,0 +1,24 @@
+LSTM_VAE:
+  data: "path/to/data.npy"
+  seq_len: 100
+  time_seq: "path/to/time_seq.npy"
+  input_size: 50
+  hidden_size: 100
+  latent_size: 20
+  num_layers: 2
+  data_type: "numeric"
+  batch_size: 32
+  epoch: 50
+  learning_rate: 0.001
+  res_dir: "path/to/results/"
+
+make_example_csv:
+  data_dir: "path/to/generated_data/"
+  columns: "path/to/columns.npy"
+  pat_inf: "path/to/pat_inf.npy"
+  num_col_names: "path/to/num_col_names.npy"
+  mis_num_col_names: "path/to/mis_num_col_names.npy"
+  dis_col_names: "path/to/dis_col_names.npy"
+  mis_dis_col_names: "path/to/mis_dis_col_names.npy"
+  time_seq: "path/to/time_seq.npy"
+  res_dir: "path/to/results/"

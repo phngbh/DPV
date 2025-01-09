@@ -8,16 +8,42 @@ from transformers import BertModel, BertConfig
 from sklearn.metrics import mean_squared_error
 import gc
 import numpy as np
+import argparse
+import yaml
+
+# Parse arguments
+parser = argparse.ArgumentParser(description='Arguments for running script')
+parser.add_argument('--config', type=str, help='Path to the configuration file')
+args = parser.parse_args()
+
+# Load configuration
+with open(args.config, 'r') as f:
+    config = yaml.safe_load(f)['cv_lstm']
+
+# Set hyperparameters
+data = config['data']
+target = config['target']
+time_seq = config['time_seq']
+train_size = config['train_size']
+val_size = config['val_size']
+dropout = config['dropout']
+hidden_dim = config['hidden_dim']
+lr = config['lr']
+weight_decay = config['weight_decay']
+epochs = config['epochs']
+patience = config['patience']
+res_dir = config['res_dir']
+suffix = config['suffix']
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 print("Load data and set up input")
 # Load data
-X = torch.load('/home/phong.nguyen/data_subset_ldl_long_full.pth')
-y = torch.load('/home/phong.nguyen/target_subset_ldl_long_full.pth')
+X = torch.load(data)
+y = torch.load(target)
 
 ## Make attention mask
-time_sequence = torch.load('/home/phong.nguyen/time_sequence_subset_ldl_long_full.pth') - 1
+time_sequence = torch.load(time_seq) - 1
 # Create a range tensor that matches the sequence length dimension
 range_tensor = torch.arange(49).unsqueeze(0).expand(len(time_sequence), 49)
 # Create the mask by comparing the range tensor with lengths tensor
@@ -43,7 +69,8 @@ class LSTMRegressor(nn.Module):
         output = self.regressor(self.dropout(last_hidden_state))
         return output
 
-def cross_validation(train_size = [3000,5000], val_size = 2000):
+train_size = list(map(int, train_size.split(',')))
+def cross_validation(train_size = train_size, val_size = val_size):
     
     result_loss = []
     result_corr = []
@@ -72,25 +99,25 @@ def cross_validation(train_size = [3000,5000], val_size = 2000):
             test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False)
 
             # Parameters
-            input_dim = 755  # Number of features per time point
-            hidden_dim = 200  # Size of LSTM hidden layers
+            input_dim = X.size(2)  # Number of features per time point
+            hidden_dim = hidden_dim  # Size of LSTM hidden layers
             output_dim = 1  # Predicting a single value
 
             # Instantiate the model
             model = LSTMRegressor(input_dim, hidden_dim, output_dim)
             model.to(device)
 
-            optimizer = Adam(model.parameters(), lr=2e-5, weight_decay=5e-3)
+            optimizer = Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
             criterion = MSELoss()
             
             # Early stopping parameters
-            patience = 30
+            patience = patience
             best_val_loss = float('inf')
             epochs_no_improve = 0
             early_stop = False
 
             # Fine-tuning (simplified)
-            for epoch in range(150):  # Number of epochs
+            for epoch in range(epochs):  # Number of epochs
                 
                 if early_stop:
                     print("Early stopping")
@@ -132,7 +159,7 @@ def cross_validation(train_size = [3000,5000], val_size = 2000):
                 if val_loss < best_val_loss:
                     best_val_loss = val_loss
                     epochs_no_improve = 0
-                    torch.save(model.state_dict(), 'best_model_hba1c.pth')
+                    torch.save(model.state_dict(), 'best_model' + suffix + '.pth')
                 else:
                     epochs_no_improve += 1
                     if epochs_no_improve == patience:
@@ -140,7 +167,7 @@ def cross_validation(train_size = [3000,5000], val_size = 2000):
             
             
             # Load the best model
-            model.load_state_dict(torch.load('best_model_hba1c.pth'))
+            model.load_state_dict(torch.load('best_model' + suffix + '.pth'))
 
             # Function to compute correlation
             def pearson_corrcoef(x, y):
@@ -192,5 +219,6 @@ def cross_validation(train_size = [3000,5000], val_size = 2000):
     return([result_loss,result_corr])
 
 result_lstm = cross_validation()
-np.save("result_cv_lstm_hba1c_long.npy", result_lstm.cpu().numpy())
-np.savetxt("result_cv_lstm_hba1c_long.csv", result_lstm.cpu().numpy(), delimiter=",")
+result_lstm = np.array(result_lstm, dtype = object)
+np.save(res_dir + "/result_cv_lstm_" + suffix + ".npy", result_lstm)
+np.savetxt(res_dir + "/result_cv_lstm_" + suffix + ".csv", result_lstm, delimiter=",")

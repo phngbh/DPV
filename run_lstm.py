@@ -10,42 +10,34 @@ import gc
 import numpy as np
 import argparse
 from datetime import timedelta, datetime
+import yaml
 
 print('Start running script')
 print('Starting time: ' + str(datetime.now().time()))
 
 # Parse arguments
 parser = argparse.ArgumentParser(description='Arguments for running script')
-parser.add_argument('--data', type=str, help='File directory to the processed input data')
-parser.add_argument('--target', type=str, help='File directory to the target data')
-parser.add_argument('--time_seq', type=str, help='File directory to the time sequence')
-parser.add_argument('--train_size', type=int, help='Training size')
-parser.add_argument('--val_size', type=int, help='Validation size')
-parser.add_argument('--dropout', type=int, help='Fraction of parameters to drop out')
-parser.add_argument('--hidden_dim', type=int, help='Hidden dimension of the LSTM embedding layer')
-parser.add_argument('--lr', type=float, help='Learning rate during optimization')
-parser.add_argument('--weight_decay', type=float, help='A regularization factor')
-parser.add_argument('--epochs', type=int, help='Number of epochs')
-parser.add_argument('--patience', type=int, help='Number of epochs to wait before early stopping during optimization')
-parser.add_argument('--res_dir', type=str, help='File directory to store the results')
-parser.add_argument('--suffix', type=str, help='Name suffix of the results')
-
+parser.add_argument('--config', type=str, help='Path to the configuration file')
 args = parser.parse_args()
 
+# Load configuration
+with open(args.config, 'r') as f:
+    config = yaml.safe_load(f)['run_lstm']
+
 # Set hyperparameters
-data = args.data
-target = args.target
-time_seq = args.time_seq
-train_size = args.train_size
-val_size = args.val_size
-dropout = args.dropout
-hidden_dim = args.hidden_dim
-lr = args.lr
-weight_decay = args.weight_decay
-epochs = args.epochs
-patience = args.patience
-res_dir = args.res_dir
-suffix = args.suffix
+data = config['data']
+target = config['target']
+time_seq = config['time_seq']
+train_size = config['train_size']
+val_size = config['val_size']
+dropout = config['dropout']
+hidden_dim = config['hidden_dim']
+lr = config['lr']
+weight_decay = config['weight_decay']
+epochs = config['epochs']
+patience = config['patience']
+res_dir = config['res_dir']
+suffix = config['suffix']
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -65,7 +57,7 @@ attention_mask = torch.from_numpy(attention_mask_np.copy())
 
 print("Define model")
 class LSTMRegressor(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim=1, num_layers=2, dropout):
+    def __init__(self, input_dim, hidden_dim, dropout, output_dim=1, num_layers=2):
         super(LSTMRegressor, self).__init__()
         self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers=num_layers, batch_first=True)
         self.regressor = nn.Linear(hidden_dim, output_dim)

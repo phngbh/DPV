@@ -9,26 +9,26 @@ import numpy as np
 import xgboost as xgb
 import argparse
 from datetime import timedelta, datetime
+import yaml
 
 print('Start running script')
 print('Starting time: ' + str(datetime.now().time()))
 
 # Parse arguments
 parser = argparse.ArgumentParser(description='Arguments for running script')
-parser.add_argument('--data', type=str, help='File directory to the processed input data')
-parser.add_argument('--target', type=str, help='File directory to the target data')
-parser.add_argument('--train_size', type=int, help='Training size')
-parser.add_argument('--res_dir', type=str, help='File directory to store the results')
-parser.add_argument('--suffix', type=str, help='Name suffix of the results')
-
+parser.add_argument('--config', type=str, help='Path to the configuration file')
 args = parser.parse_args()
 
+# Load configuration
+with open(args.config, 'r') as f:
+    config = yaml.safe_load(f)['run_xgb']
+
 # Set hyperparameters
-data = args.data
-target = args.target
-train_size = args.train_size
-res_dir = args.res_dir
-suffix = args.suffix
+data = config['data']
+target = config['target']
+train_size = config['train_size']
+res_dir = config['res_dir']
+suffix = config['suffix']
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

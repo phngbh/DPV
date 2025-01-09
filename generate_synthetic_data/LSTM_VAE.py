@@ -11,33 +11,33 @@ import matplotlib.pyplot as plt
 import random
 import argparse
 import gc
+import os
+import yaml
 
-import preprocessing_functions as uf
+import utils_functions as uf
 
 # Parse arguments
 parser = argparse.ArgumentParser(description='Arguments for LSTM-VAE')
-parser.add_argument('--seq_len', type=int, help='Sequence length')
-parser.add_argument('--input_size', type=int, help='Input size')
-parser.add_argument('--hidden_size', type=int, help='Hidden size')
-parser.add_argument('--latent_size', type=int, help='Latent size')
-parser.add_argument('--num_layers', type=int, help='Number of layers')
-parser.add_argument('--data_type', type=str, help='Data type')
-parser.add_argument('--batch_size', type=int, help='Batch size')
-parser.add_argument('--epoch', type=int, help='Numer of epochs')
-parser.add_argument('--learning_rate', type=float, help='Learning rate')
-
+parser.add_argument('--config', type=str, help='Path to the configuration file')
 args = parser.parse_args()
 
+# Load configuration
+with open(args.config, 'r') as f:
+    config = yaml.safe_load(f)['LSTM_VAE']
+
 # Set hyperparameters
-seq_len = args.seq_len
-input_size = args.input_size
-hidden_size = args.hidden_size
-latent_size = args.latent_size
-num_layers = args.num_layers
-batch_size = args.batch_size
-num_epochs = args.epoch
-learning_rate = args.learning_rate
-data_type = args.data_type
+data = config['data']
+seq_len = config['seq_len']
+time_seq = config['time_seq']
+input_size = config['input_size']
+hidden_size = config['hidden_size']
+latent_size = config['latent_size']
+num_layers = config['num_layers']
+batch_size = config['batch_size']
+num_epochs = config['epoch']
+learning_rate = config['learning_rate']
+data_type = config['data_type']
+res_dir = config['res_dir']
 
 # Set device to GPU if available
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -94,7 +94,7 @@ class VAE(nn.Module):
         # print(state[1].shape)
         output, _ = self.decoder(z_hidden, state)
         recons_output = self.hidden2input(output)
-        if self.data_type == "discrete" or self.data_type == "missing":
+        if self.data_type == "discrete":
             recons_output = torch.sigmoid(recons_output)
             epsilon = 1e-8  # Small constant to avoid division by zero
             recons_output = torch.clamp(recons_output, epsilon, 1 - epsilon)  # Ensure probabilities are in (epsilon, 1-epsilon) range
@@ -107,11 +107,8 @@ class VAE(nn.Module):
         return output, mean, logvar
     
 # Load data
-if data_type == 'missing':
-    data = np.load('/home/phong.nguyen/missing_mask.npy', allow_pickle = True)
-else:
-    data = np.load('/home/phong.nguyen/proc_' + data_type + '_data_missing.npy', allow_pickle = True)
-time_seq = np.load('/home/phong.nguyen/time_sequence.npy', allow_pickle = True)
+data = np.load(data, allow_pickle = True)
+time_seq = np.load(time_seq, allow_pickle = True)
 
 # Add an ID to the data
 new_data = []
@@ -140,7 +137,7 @@ test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 model = VAE(seq_len, input_size, hidden_size, latent_size, num_layers, data_type).to(device)
 
 # Define loss function and optimizer
-#criterion = nn.MSELoss() #nn.CrossEntropyLoss()  # Binary Cross-Entropy Loss for discrete data 
+#criterion = nn.MSELoss() #nn.CrossEntropyLoss() 
 optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
 # # StepLR reduces the learning rate by a factor after a specified number of epochs
@@ -178,7 +175,7 @@ for epoch in range(num_epochs):
         output, mean, logvar = model(new_batch)
         
         # Reconstruction loss
-        if data_type == 'discrete' or data_type == 'missing':
+        if data_type == 'discrete':
             recon_loss = uf.custom_loss_discrete(output, new_batch, padding_masks)
         elif data_type == 'numeric':
             recon_loss = uf.custom_loss_numeric(output, new_batch, padding_masks)
@@ -220,7 +217,7 @@ for batch in test_loader:
     output, mean, logvar = model(new_batch)
 
     # Reconstruction loss
-    if data_type == 'discrete' or data_type == 'missing':
+    if data_type == 'discrete':
         recon_loss = uf.custom_loss_discrete(output, new_batch, padding_masks)
     elif data_type == 'numeric':
         recon_loss = uf.custom_loss_numeric(output, new_batch, padding_masks)
@@ -241,14 +238,14 @@ avg_loss = total_loss / len(test_loader)
 print(f"Test Loss: {avg_loss:.4f}")
 
 # Save the trained VAE model
-torch.save(model.state_dict(), '/home/phong.nguyen/lstm_vae_final_model_' + data_type + '.pt')
+torch.save(model.state_dict(), res_dir + 'lstm_vae_final_model_' + data_type + '.pt')
 
 # Reconstruct test samples
 sample_inputs = test_dataset[:,:,1:] 
 with torch.no_grad():
     reconstructed_samples = model(sample_inputs)
-torch.save(reconstructed_samples, '/home/phong.nguyen/reconstructed_' + data_type + '_test.pt')
-torch.save(test_dataset, '/home/phong.nguyen/' + data_type + '_test.pt')
+torch.save(reconstructed_samples, res_dir + 'reconstructed_' + data_type + '_test.pt')
+torch.save(test_dataset, res_dir + data_type + '_test.pt')
 
 # Try to free up some memory
 del reconstructed_samples
@@ -271,15 +268,19 @@ gc.collect()
 # del sample_inputs
 # gc.collect()
 
-saved_checkpoint = '/home/phong.nguyen/lstm_vae_final_model_' + data_type + '.pt'
+# saved_checkpoint = '/home/phong.nguyen/lstm_vae_final_model_' + data_type + '.pt'
 
-# Load the saved model state_dict
-model.load_state_dict(torch.load(saved_checkpoint))
+# # Load the saved model state_dict
+# model.load_state_dict(torch.load(saved_checkpoint))
 
 ## Generate synthetic data
 print("Generate synthetic data")
 # Calculate the total number of samples
 total_samples = len(data)
+
+# Ensure the tmp directory exists within res_dir
+tmp_dir = os.path.join(res_dir, 'tmp')
+os.makedirs(tmp_dir, exist_ok=True)
 
 # Initialize an empty list to store reconstructed samples
 reconstructed_samples = []
@@ -298,7 +299,7 @@ for start_idx in range(0, total_samples, 200): # batch_size = 200
     # # Append the batch of reconstructed samples to the list
     # reconstructed_samples.append(batch_reconstructed)
     # Save part of resonstructed samples
-    torch.save(batch_reconstructed, '/home/phong.nguyen/tmp/reconstructed_' + data_type + str(start_idx) + '.pt')
+    torch.save(batch_reconstructed, tmp_dir + 'reconstructed_' + data_type + str(start_idx) + '.pt')
     
     # Try to free up some memory
     del batch_inputs
@@ -306,9 +307,6 @@ for start_idx in range(0, total_samples, 200): # batch_size = 200
     gc.collect()
     
     torch.cuda.empty_cache()
-
-# Calculate the total number of samples
-total_samples = 114136
 
 # Initialize an empty list to store reconstructed samples
 big_array_list = []
@@ -319,7 +317,7 @@ for start_idx in range(0, total_samples, 200): # batch_size = 200
     print('File' + str(start_idx), end=" ")
     
     end_idx = min(start_idx + 200, total_samples)
-    data = torch.load('/home/phong.nguyen/tmp/reconstructed_' + data_type + str(start_idx) + '.pt')
+    data = torch.load(tmp_dir + 'reconstructed_' + data_type + str(start_idx) + '.pt')
     t = time_seq[start_idx:end_idx]
     array_list = []
     for i in range(data.shape[0]):
@@ -345,4 +343,4 @@ for start_idx in range(0, total_samples, 200): # batch_size = 200
 big_array = np.concatenate(big_array_list, axis=0)
 
 # Save reconstructed data
-np.save('/home/phong.nguyen/reconstructed_' + data_type + '.npy', big_array)
+np.save(res_dir + 'reconstructed_' + data_type + '.npy', big_array)
