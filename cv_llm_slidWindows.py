@@ -5,6 +5,7 @@ from torch.optim import Adam
 from torch.nn import MSELoss
 from torch.utils.data import DataLoader, TensorDataset
 from transformers import AutoModel, AutoConfig
+from models import TransformerWithLinearEmbedding, TransformerWithLSTMEmbedding
 from sklearn.metrics import mean_squared_error
 import gc
 import numpy as np
@@ -33,105 +34,19 @@ val_size = config['val_size']
 dropout = config['dropout']
 hidden_dim = config['hidden_dim']
 lstm_layers = config['lstm_layers']
-embedding_dim = config['embedding_dim']
 lr = config['lr']
 weight_decay = config['weight_decay']
 epochs = config['epochs']
 patience = config['patience']
 res_dir = config['res_dir']
 suffix = config['suffix']
-pretrained_model_name = config['pretrained_model_name']
-pretrained_model_hidden_size = config['pretrained_model_hidden_size']
+pretrained_model = config['pretrained_model']
+
+# Retrieve the hidden size from the model's configuration
+config = AutoConfig.from_pretrained(pretrained_model)
+embedding_dim = config.hidden_size
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-print("Define model")
-# Embedding layers
-class LinearEmbeddingLayer(nn.Module):
-    def __init__(self, input_dim, embedding_dim):
-        super(LinearEmbeddingLayer, self).__init__()
-        self.fc1 = nn.Linear(input_dim, 50)  # Input layer to hidden layer
-        self.fc2 = nn.Linear(50, embedding_dim) # Hidden layer to output layer
-        self.dropout = nn.Dropout(0.7)
-        self.bn = nn.BatchNorm1d(embedding_dim)
-
-    def forward(self, X, attention_mask):
-        X = X * attention_mask.unsqueeze(-1)  # Mask the input
-        X = F.relu(self.fc1(X))
-        X = self.dropout(X)
-        X = self.fc2(X)
-        
-        # # Apply batch normalization along the feature dimension
-        # X = X.permute(0, 2, 1)  # Permute to (batch_size, embedding_dim, seq_length)
-        # X = self.bn(X)  # Apply BatchNorm1d
-        # X = X.permute(0, 2, 1)  # Permute back to (batch_size, seq_length, embedding_dim)
-        
-        return X
-        
-class LSTMEmbeddingLayer(nn.Module):
-    def __init__(self, input_dim, hidden_dim, lstm_layers, embedding_dim, global_max_length):
-        super(LSTMEmbeddingLayer, self).__init__()
-        self.lstm = nn.LSTM(input_dim, hidden_dim, lstm_layers, batch_first=True)
-        self.linear = nn.Linear(hidden_dim, embedding_dim)  # embedding_dim = LLM's hidden size
-        self.global_max_length = global_max_length
-        
-    def forward(self, x, lengths):
-        # x: (batch_size, seq_length, input_dim)
-        # lengths: (batch_size)
-        packed_input = nn.utils.rnn.pack_padded_sequence(x, lengths, batch_first=True, enforce_sorted=False)
-        packed_output, _ = self.lstm(packed_input)  # packed_output contains packed sequence
-        lstm_out, _ = nn.utils.rnn.pad_packed_sequence(packed_output, batch_first=True)  # (batch_size, seq_length, hidden_dim)
-
-        # Manual padding to global_max_length
-        batch_size = lstm_out.size(0)
-        max_batch_seq_length = lstm_out.size(1)
-        padded_lstm_out = torch.zeros(batch_size, self.global_max_length, lstm_out.size(2)).to(lstm_out.device)
-        padded_lstm_out[:, -max_batch_seq_length:, :] = lstm_out
-        
-        # Transform LSTM output to the hidden size of BERT
-        embeddings = self.linear(padded_lstm_out)  # embeddings: (batch_size, global_max_seq_length, embedding_dim)
-        
-        return embeddings
-
-# Main functions
-class BERTwithLinearEmbedding(nn.Module):
-    def __init__(self, input_dim, embedding_dim, output_dim=1):
-        super(BERTwithLinearEmbedding, self).__init__()
-        self.embedding = LinearEmbeddingLayer(input_dim, embedding_dim)
-        self.bert = AutoModel.from_pretrained(pretrained_model_name)
-        self.dropout = nn.Dropout(0.7)
-        # Assuming a regression task; change output features for classification
-        self.regressor = nn.Linear(pretrained_model_hidden_size, output_dim)
-        
-    def forward(self, X, attention_mask=None): # X expected shape: [batch_size, seq_length, input_dim]
-        # Apply the embedding layer
-        X_embeds = self.embedding(X, attention_mask)  # [batch_size, seq_length, output_embedding_dim]
-
-        # Process through BERT
-        outputs = self.bert(inputs_embeds=X_embeds, attention_mask=attention_mask)
-        pooled_output = outputs.pooler_output # [batch_size, hidden_size]
-
-        # Apply regression layer
-        return self.regressor(self.dropout(pooled_output))
-
-class BERTwithLSTMEmbedding(nn.Module):
-    def __init__(self, input_dim, hidden_dim, lstm_layers, embedding_dim, global_max_length, output_dim=1):
-        super(BERTwithLSTMEmbedding, self).__init__()
-        self.embedding = LSTMEmbeddingLayer(input_dim, hidden_dim, lstm_layers, embedding_dim, global_max_length)
-        self.bert = AutoModel.from_pretrained(pretrained_model_name)
-        # Assuming a regression task; change output features for classification
-        self.regressor = nn.Linear(pretrained_model_hidden_size, output_dim)
-        
-    def forward(self, X, lengths, attention_mask=None): # X expected shape: [batch_size, seq_length, input_dim]
-        # Apply the embedding layer
-        X_embeds = self.embedding(X, lengths)  # [batch_size, seq_length, output_embedding_dim]
-
-        # Process through BERT
-        outputs = self.bert(inputs_embeds=X_embeds, attention_mask=attention_mask)
-        pooled_output = outputs.pooler_output # [batch_size, hidden_size]
-
-        # Apply regression layer
-        return self.regressor(pooled_output)
 
 
 def cross_validation(last_pos = [0,1,2,3,4]):
@@ -186,7 +101,7 @@ def cross_validation(last_pos = [0,1,2,3,4]):
             output_dim = 1  # Output dimension for regression
 
             # Instantiate the model
-            model = BERTwithLinearEmbedding(input_dim = input_dim, embedding_dim = embedding_dim, output_dim=output_dim)
+            model = TransformerWithLinearEmbedding(input_dim = input_dim, embedding_dim = embedding_dim, output_dim=output_dim, pretrained_model=pretrained_model)
             model.to(device)
 
             optimizer = Adam(model.parameters(), lr=2e-5, weight_decay=5e-3)

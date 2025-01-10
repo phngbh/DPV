@@ -4,7 +4,8 @@ import torch.nn.functional as F
 from torch.optim import Adam
 from torch.nn import MSELoss
 from torch.utils.data import DataLoader, TensorDataset
-from transformers import AutoModel, AutoConfig
+from transformers import AutoConfig
+from models import TransformerWithLinearEmbedding, TransformerWithLSTMEmbedding
 from sklearn.metrics import mean_squared_error
 import gc
 import numpy as np
@@ -33,15 +34,17 @@ val_size = config['val_size']
 dropout = config['dropout']
 hidden_dim = config['hidden_dim']
 lstm_layers = config['lstm_layers']
-embedding_dim = config['embedding_dim']
 lr = config['lr']
 weight_decay = config['weight_decay']
 epochs = config['epochs']
 patience = config['patience']
 res_dir = config['res_dir']
 suffix = config['suffix']
-pretrained_model_name = config['pretrained_model_name']
-pretrained_model_hidden_size = config['pretrained_model_hidden_size']
+pretrained_model = config['pretrained_model']
+
+# Retrieve the hidden size from the model's configuration
+config = AutoConfig.from_pretrained(pretrained_model)
+embedding_dim = config.hidden_size
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -59,70 +62,6 @@ attention_mask_np = (range_tensor < time_sequence.unsqueeze(1)).int().numpy()
 attention_mask_np = np.fliplr(attention_mask_np)
 attention_mask = torch.from_numpy(attention_mask_np.copy())
 
-print("Define model")
-# Embedding layers
-class LinearEmbeddingLayer(nn.Module):
-    def __init__(self, input_dim, embedding_dim, dropout):
-        super(LinearEmbeddingLayer, self).__init__()
-        self.fc1 = nn.Linear(input_dim, 50)  # Input layer to hidden layer
-        self.fc2 = nn.Linear(50, embedding_dim) # Hidden layer to output layer
-        self.dropout = nn.Dropout(dropout)
-        self.bn = nn.BatchNorm1d(embedding_dim)
-
-    def forward(self, X, attention_mask):
-        X = X * attention_mask.unsqueeze(-1)  # Mask the input
-        X = F.relu(self.fc1(X))
-        X = self.dropout(X)
-        X = self.fc2(X)
-        return X
-        
-class LSTMEmbeddingLayer(nn.Module):
-    def __init__(self, input_dim, hidden_dim, lstm_layers, embedding_dim, global_max_length):
-        super(LSTMEmbeddingLayer, self).__init__()
-        self.lstm = nn.LSTM(input_dim, hidden_dim, lstm_layers, batch_first=True)
-        self.linear = nn.Linear(hidden_dim, embedding_dim)  # embedding_dim = LLM's hidden size
-        self.global_max_length = global_max_length
-        
-    def forward(self, x, lengths):
-        packed_input = nn.utils.rnn.pack_padded_sequence(x, lengths, batch_first=True, enforce_sorted=False)
-        packed_output, _ = self.lstm(packed_input)
-        lstm_out, _ = nn.utils.rnn.pad_packed_sequence(packed_output, batch_first=True)
-
-        batch_size = lstm_out.size(0)
-        max_batch_seq_length = lstm_out.size(1)
-        padded_lstm_out = torch.zeros(batch_size, self.global_max_length, lstm_out.size(2)).to(lstm_out.device)
-        padded_lstm_out[:, -max_batch_seq_length:, :] = lstm_out
-        
-        embeddings = self.linear(padded_lstm_out)
-        return embeddings
-
-# Main functions
-class LLMwithLinearEmbedding(nn.Module):
-    def __init__(self, input_dim, embedding_dim, dropout, output_dim=1):
-        super(LLMwithLinearEmbedding, self).__init__()
-        self.embedding = LinearEmbeddingLayer(input_dim, embedding_dim, dropout)
-        self.llm = AutoModel.from_pretrained(pretrained_model_name)
-        self.dropout = nn.Dropout(dropout)
-        self.regressor = nn.Linear(pretrained_model_hidden_size, output_dim)
-        
-    def forward(self, X, attention_mask=None):
-        X_embeds = self.embedding(X, attention_mask)
-        outputs = self.llm(inputs_embeds=X_embeds, attention_mask=attention_mask)
-        pooled_output = outputs.pooler_output
-        return self.regressor(self.dropout(pooled_output))
-
-class LLMwithLSTMEmbedding(nn.Module):
-    def __init__(self, input_dim, hidden_dim, lstm_layers, embedding_dim, global_max_length, output_dim=1):
-        super(LLMwithLSTMEmbedding, self).__init__()
-        self.embedding = LSTMEmbeddingLayer(input_dim, hidden_dim, lstm_layers, embedding_dim, global_max_length)
-        self.llm = AutoModel.from_pretrained(pretrained_model_name)
-        self.regressor = nn.Linear(pretrained_model_hidden_size, output_dim)
-        
-    def forward(self, X, lengths, attention_mask=None):
-        X_embeds = self.embedding(X, lengths)
-        outputs = self.llm(inputs_embeds=X_embeds, attention_mask=attention_mask)
-        pooled_output = outputs.pooler_output
-        return self.regressor(pooled_output)
 
 train_size = list(map(int, train_size.split(',')))
 def cross_validation(train_size = train_size, val_size = val_size):
@@ -155,7 +94,7 @@ def cross_validation(train_size = train_size, val_size = val_size):
             embedding_dim = embedding_dim
             output_dim = 1
 
-            model = LLMwithLinearEmbedding(input_dim = input_dim, embedding_dim = embedding_dim, output_dim=output_dim, dropout= dropout)
+            model = TransformerWithLinearEmbedding(input_dim = input_dim, embedding_dim = embedding_dim, output_dim=output_dim, dropout= dropout, pretrained_model=pretrained_model)
             model.to(device)
 
             optimizer = Adam(model.parameters(), lr=lr, weight_decay=weight_decay)

@@ -7,6 +7,7 @@ import warnings
 import torch
 import gc
 import argparse
+import yaml 
 
 # Parse arguments
 parser = argparse.ArgumentParser(description='Arguments for make_example_csv')

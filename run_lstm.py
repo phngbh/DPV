@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from torch.optim import Adam
 from torch.nn import MSELoss
 from torch.utils.data import DataLoader, TensorDataset
-from transformers import BertModel, BertConfig
+from models import LSTMRegressor
 from sklearn.metrics import mean_squared_error
 import gc
 import numpy as np
@@ -54,24 +54,6 @@ range_tensor = torch.arange(49).unsqueeze(0).expand(len(time_sequence), 49)
 attention_mask_np = (range_tensor < time_sequence.unsqueeze(1)).int().numpy()
 attention_mask_np = np.fliplr(attention_mask_np)
 attention_mask = torch.from_numpy(attention_mask_np.copy())
-
-print("Define model")
-class LSTMRegressor(nn.Module):
-    def __init__(self, input_dim, hidden_dim, dropout, output_dim=1, num_layers=2):
-        super(LSTMRegressor, self).__init__()
-        self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers=num_layers, batch_first=True)
-        self.regressor = nn.Linear(hidden_dim, output_dim)
-        self.dropout = nn.Dropout(dropout)
-    
-    def forward(self, x, lengths):
-        # Pack the sequence
-        packed_input = nn.utils.rnn.pack_padded_sequence(x, lengths, batch_first=True, enforce_sorted=False)
-        packed_output, (ht, ct) = self.lstm(packed_input)
-        
-        # We use the hidden state from the last layer of the LSTM for prediction
-        last_hidden_state = ht[-1]  # Take the last layer's hidden state
-        output = self.regressor(self.dropout(last_hidden_state))
-        return output
 
 # Set the seed for reproducibility and randomly choose 1000 indices without replacement
 torch.manual_seed(93)

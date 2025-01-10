@@ -1,8 +1,6 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.optim import Adam
-from torch.nn import MSELoss
 from sklearn.metrics import mean_squared_error as MSE
 import gc
 import numpy as np

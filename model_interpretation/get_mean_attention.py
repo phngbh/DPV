@@ -1,16 +1,32 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.optim import Adam
-from torch.nn import MSELoss
-from sklearn.metrics import mean_squared_error as MSE
 import gc
 import numpy as np
-import xgboost as xgb
+import argparse
+from datetime import timedelta, datetime
+import yaml
+
+print('Start running script')
+print('Starting time: ' + str(datetime.now().time()))
+
+# Parse arguments
+parser = argparse.ArgumentParser(description='Arguments for running script')
+parser.add_argument('--config', type=str, help='Path to the configuration file')
+args = parser.parse_args()
+
+# Load configuration
+with open(args.config, 'r') as f:
+    config = yaml.safe_load(f)['get_mean_attention']
+
+# Set hyperparameters
+attentions = config['attentions']
+res_dir = config['res_dir']
+suffix = config['suffix']
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-attentions = torch.load("attentions_hba1c_18k_long.pth")
+attentions = torch.load(attentions)
 
 # Initialize a list to store the mean attention weights for each layer and head
 mean_attentions = []
@@ -29,4 +45,4 @@ for layer in range(num_layers):
     mean_layer_attention = layer_attentions.mean(dim=0)  # Shape: (num_heads, seq_len, seq_len)
     mean_attentions.append(mean_layer_attention)
     
-torch.save(mean_attentions,"mean_attentions_hba1c_18k_long.pth")
+torch.save(mean_attentions,res_dir + "mean_attentions" + suffix + ".pth")
