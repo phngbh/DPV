@@ -1,6 +1,6 @@
 # Step by step guide
 
-This is the analysis code to reproduce the results of the DPV manuscript "Leveraging pretrained large language model for prognosis of type 2 diabetes with longitudinal medical records" [LINK]. Please follow the steps below to run the analysis and the machine learning framework for similar health data. 
+This is the analysis code to reproduce the results of the DPV manuscript [**"Leveraging pretrained large language model for prognosis of type 2 diabetes with longitudinal medical records"**](https://www.medrxiv.org/content/10.1101/2025.02.04.24313200v1). Please follow the steps below to run the analysis and the machine learning framework for similar health data. 
 
 ## Data
 The data used in this manuscript was obtained from the Diabetes-Patienten-Verlaufsdokumentation (DPV), an initiative to enhance diabetes research and treatment. For more information about the project and data acquitition please visit: https://buster.zibmt.uni-ulm.de/.
@@ -34,7 +34,7 @@ python generate_synthetic_data.py --config generate_synthetic_data/config.yml
 ```
 
 ## Make prediction leveraging pretrained large language models
-Medical time series data is notably very sparse with a lot of missing information. Futhermore, high number of features complicates the analyses. In order to leverage the prediction power of pretrained large language models in the most efficient way, I introduce a novel data processing and embedding method to bridge the gap between the two domains. Details of the method could be found in the manuscript [LINK]. In short, missing information is summarized as a binary table which is appended to the training data as additional features. In addition, a learnable embedding layer is prepended to the pretrained LLM to adapt the numeric data to the LLM architecture. Both components are learned simultaneously during training. 
+Medical time series data is notably very sparse with a lot of missing information. Futhermore, high number of features complicates the analyses. In order to leverage the prediction power of pretrained large language models in the most efficient way, I introduce a novel data processing and embedding method to bridge the gap between the two domains. Details of the method could be found in the [manuscript](https://www.medrxiv.org/content/10.1101/2025.02.04.24313200v1). In short, missing information is summarized as a binary table which is appended to the training data as additional features. In addition, a learnable embedding layer is prepended to the pretrained LLM to adapt the numeric data to the LLM architecture. Both components are learned simultaneously during training. 
 
 ![The machine learning framework to leverage pretrained LLM for medical timeseries data](workflow.png)
 
