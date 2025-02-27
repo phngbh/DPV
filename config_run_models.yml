@@ -12,6 +12,7 @@ run_lstm:
   patience: 10
   res_dir: "path/to/results/"
   suffix: "lstm"
+  num_classes:
 
 run_xgb:
   data: "path/to/data.pt"
@@ -36,3 +37,4 @@ run_transformer:
   res_dir: "path/to/results/"
   suffix: "transformer"
   pretrained_model: "bert-base-uncased"
+  num_classes: 

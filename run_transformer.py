@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.optim import Adam
-from torch.nn import MSELoss
+from torch.nn import MSELoss, CrossEntropyLoss, BCEWithLogitsLoss
 from torch.utils.data import DataLoader, TensorDataset
 from transformers import AutoConfig
 from models import TransformerWithLinearEmbedding, TransformerWithLSTMEmbedding
@@ -41,6 +41,7 @@ patience = config['patience']
 res_dir = config['res_dir']
 suffix = config['suffix']
 pretrained_model = config['pretrained_model']
+num_classes = config.get('num_classes', None)  # Number of classes for classification
 
 # Retrieve the hidden size from the model's configuration
 config = AutoConfig.from_pretrained(pretrained_model)
@@ -93,17 +94,20 @@ epochs = epochs
 patience = patience
 
 # Instantiate the model
-model = TransformerWithLinearEmbedding(input_dim = input_dim, embedding_dim = embedding_dim, output_dim=output_dim, dropout = dropout, pretrained_model=pretrained_model)
-#model = TransformerWithLinearEmbedding(input_dim = input_dim, hidden_dim = hidden_dim, lstm_layers = lstm_layers, embedding_dim = embedding_dim, output_dim=output_dim, global_max_length=global_max_length, pretrained_model=pretrained_model)
+model = TransformerWithLinearEmbedding(input_dim = input_dim, embedding_dim = embedding_dim, output_dim=output_dim, dropout = dropout, pretrained_model=pretrained_model, num_classes=num_classes)
 model.to(device)
 
 print("Start training")
 # Optimizer and loss function
 optimizer = Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
-criterion = MSELoss()
+if num_classes is None:
+    criterion = MSELoss()
+elif num_classes == 2:
+    criterion = BCEWithLogitsLoss()
+else:
+    criterion = CrossEntropyLoss()
 
 # Early stopping parameters
-patience = patience
 best_val_loss = float('inf')
 epochs_no_improve = 0
 early_stop = False
@@ -125,7 +129,8 @@ for epoch in range(epochs):  # Number of epochs
         
         # Forward pass
         predictions, _ = model(data, attention_mask = mask)
-        predictions = predictions.squeeze(-1)
+        if num_classes is not None and num_classes > 2:
+            predictions = predictions.squeeze(-1)
         
         # Loss calculation
         loss = criterion(predictions, targets)
@@ -145,7 +150,8 @@ for epoch in range(epochs):  # Number of epochs
         for data, seq_length, mask, targets in val_loader:
             data, mask, targets = data.to(device).float(), mask.to(device).float(), targets.to(device).float()
             predictions, _ = model(data, attention_mask=mask)
-            predictions = predictions.squeeze(-1)
+            if num_classes is not None and num_classes > 2:
+                predictions = predictions.squeeze(-1)
             loss = criterion(predictions, targets)
             val_loss += loss.item()
     val_loss /= len(val_loader)
@@ -187,7 +193,8 @@ with torch.no_grad():
         inputs, targets = inputs.to(device).float(), targets.to(device).float()
         mask = mask.to(device).float()
         outputs, attentions = model(inputs, attention_mask = mask)
-        outputs = outputs.squeeze(-1)
+        if num_classes is not None and num_classes > 2:
+            outputs = outputs.squeeze(-1)
 
         # Collect predictions and targets for correlation calculation
         all_predictions.append(outputs)

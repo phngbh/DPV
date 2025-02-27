@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import torch
 import gc
+import yaml
 import argparse
 from datetime import timedelta, datetime
 
@@ -11,42 +12,33 @@ def main():
 
     # Parse arguments
     parser = argparse.ArgumentParser(description='Arguments for preprocessing')
-    parser.add_argument('--min_seq_len', type=int, help='Minimum sequence length')
-    parser.add_argument('--max_seq_len', type=int, help='Maximum sequence length')
-    parser.add_argument('--col_names', type=str, help='File directory to the array of all column names')
-    parser.add_argument('--num_col_names', type=str, help='File directory to the array of numeric column names')
-    parser.add_argument('--mis_num_col_names', type=str, help='File directory to the array of missing numeric column names')
-    parser.add_argument('--dis_col_names', type=str, help='File directory to the array of discrete column names')
-    parser.add_argument('--mis_dis_col_names', type=str, help='File directory to the array of missing discrete column names')
-    parser.add_argument('--data', type=str, help='File directory to the padded data')
-    parser.add_argument('--pat_inf', type=str, help='File directory to patient information (ID and center)')
-    parser.add_argument('--target_related_col', type=str, help='File directory to the numeric array of target related columns (to be removed)')
-    parser.add_argument('--target_col', type=int, help='Index of the target column (to be predicted)')
-    parser.add_argument('--mis_target_col', type=int, help='Index of the column for missing information of the target')
-    parser.add_argument('--target_name', type=int, help='Name of the target variable (hba1c, ldl or something else)')
-    parser.add_argument('--subset', type=int, help='Number of random samples to process')
-    parser.add_argument('--res_dir', type=str, help='File directory to store the results')
-    parser.add_argument('--suffix', type=str, help='Name suffix of the results')
-
+    parser.add_argument('--config', type=str, help='Path to the configuration file')
     args = parser.parse_args()
 
+    # Load configuration
+    with open(args.config, 'r') as f:
+        config = yaml.safe_load(f)['make_input']
+
     # Set hyperparameters
-    min_seq_len = args.min_seq_len
-    col_names = args.col_names
-    num_col_names = args.num_col_names
-    mis_num_col_names = args.mis_num_col_names
-    dis_col_names = args.dis_col_names
-    mis_dis_col_names = args.mis_dis_col_names
-    data = args.data
-    pat_inf = args.pat_inf
-    target_related_col = args
-    target_col = args.target_col
-    mis_target_col = args.mis_target_col
-    target_name = args.target_name
-    subset = args.subset
-    max_seq_len = args.max_seq_len
-    res_dir = args.res_dir
-    suffix = args.suffix
+    min_seq_len = config['min_seq_len']
+    max_seq_len = config['max_seq_len']
+    col_names = config['col_names']
+    num_col_names = config['num_col_names']
+    mis_num_col_names = config['mis_num_col_names']
+    dis_col_names = config['dis_col_names']
+    mis_dis_col_names = config['mis_dis_col_names']
+    data = config['data']
+    pat_inf = config['pat_inf']
+    target_related_col = config['target_related_col']
+    target_col = config['target_col']
+    mis_target_col = config['mis_target_col']
+    target_name = config['target_name']
+    subset = config['subset']
+    res_dir = config['res_dir']
+    suffix = config['suffix']
+    make_sliding_windows = config['make_sliding_windows']
+    max_prediction_window = config['max_prediction_window']
+    remove_rows = config['remove_rows']
 
     print("Load data")
     columns = np.load(col_names, allow_pickle=True)
@@ -225,42 +217,64 @@ def main():
     target_last = target_last[subset_indices]
 
     print("Start to process samples")
-    new_data = np.zeros([len(proc_data),max_seq_len-1,len(columns)])
-    for i in range(len(proc_data)):
+    remove_rows = list(map(int, remove_rows.split(',')))
+    for remove_row in range(len(remove_rows)):
         
-        print("Process sample " + str(i))
+        print("Process samples for prediction point " + str(remove_row))
+        new_data = np.zeros([len(proc_data),max_seq_len-1,len(columns)])
         
-        data_i = proc_data[i] # Data of sample i
+        for i in range(len(proc_data)):
 
-        # Modify the time info
-        time_i = data_i[1:,0] # extract the time column & remove the first 1 dates (not useful for prediction)
-        time_i = np.log10(time_i + 0.1) # Log10 transform the time info
-        data_i = data_i[:-1,:] # Remove the last 1 rows
-        data_i[:,0] = time_i # Change the time column
+            data_i = proc_data[i] # Data of sample i
+
+            # Modify the time info
+            time_i = data_i[1:,0] # extract the time column & remove the first 1 dates (not useful for prediction)
+            time_i = np.log10(time_i + 0.1) # Log10 transform the time info
+            data_i = data_i[:-1,:] # Remove the last 1 rows
+            data_i[:,0] = time_i # Change the time column
+
+            # Get sliding windows
+            #data_i = data_i[:-4,:]
+
+            # Rearrange the data columns
+            numeric_data_i = data_i[:,indices_numeric]
+            numeric_data_i[:,1:] = (numeric_data_i[:,1:] - means_numeric)/stds_numeric # Standardise the numeric data
+            discrete_data_i = data_i[:,indices_discrete]
+            discrete_data_i = (discrete_data_i - means_discrete)/stds_discrete # Standardise the discrete data
+            numeric_data_missing_i = data_i[:,indices_numeric_missing]
+            numeric_data_missing_i = (numeric_data_missing_i - means_numeric_missing)/stds_numeric_missing # Standardise the numeric data
+            discrete_data_missing_i = data_i[:,indices_discrete_missing]
+            discrete_data_misisng_i = (discrete_data_missing_i - means_discrete_missing)/stds_discrete_missing # Standardise the numeric data
+            data_i = np.concatenate((numeric_data_i, discrete_data_i, numeric_data_missing_i, discrete_data_missing_i), axis=1)
+
+            # Make slidding windows
+            window_length = len(data_i) - max_prediction_window # Get the window length for sample i
+            if make_sliding_windows:
+                if len(data_i) >= window_length + remove_row: # Ensure data_i has enough rows
+                    # Create the sliding window by removing the specified number of last rows
+                    sliding_window = data_i[:-remove_row] if remove_row > 0 else data_i
+                    sliding_window = sliding_window[-window_length:]  # Ensure the window length is consistent
+
+                    # Assign the sliding window to new_data
+                    new_data[i, -len(sliding_window):, :] = sliding_window
+                else:
+                    print(f"...data does not have enough rows for the specified window_length and remove_rows.")
+            else:
+                new_data[i, -len(data_i):, :] = data_i
+
+            # new_data.append(data_i)
+            # new_data[i,-len(data_i):,:] = data_i
+            del data_i, numeric_data_i, numeric_data_missing_i, discrete_data_i, discrete_data_missing_i
+            gc.collect()
+            
+        print("...Save samples of prediction point " + str(remove_row))
+        torch.save(torch.from_numpy(new_data),res_dir + '/data_subset_' + suffix + '_' + str(remove_row) + ".pth")
         
-        # Get sliding windows
-        #data_i = data_i[:-4,:]
-
-        # Rearrange the data columns
-        numeric_data_i = data_i[:,indices_numeric]
-        numeric_data_i[:,1:] = (numeric_data_i[:,1:] - means_numeric)/stds_numeric # Standardise the numeric data
-        discrete_data_i = data_i[:,indices_discrete]
-        discrete_data_i = (discrete_data_i - means_discrete)/stds_discrete # Standardise the discrete data
-        numeric_data_missing_i = data_i[:,indices_numeric_missing]
-        numeric_data_missing_i = (numeric_data_missing_i - means_numeric_missing)/stds_numeric_missing # Standardise the numeric data
-        discrete_data_missing_i = data_i[:,indices_discrete_missing]
-        discrete_data_misisng_i = (discrete_data_missing_i - means_discrete_missing)/stds_discrete_missing # Standardise the numeric data
-        data_i = np.concatenate((numeric_data_i, discrete_data_i, numeric_data_missing_i, discrete_data_missing_i), axis=1)
-
-        # new_data.append(data_i)
-        new_data[i,-len(data_i):,:] = data_i
-
-        del data_i, numeric_data_i, numeric_data_missing_i, discrete_data_i, discrete_data_missing_i
+        del new_data
         gc.collect()
 
-    print("Save data")
+    print("Save rest of data")
     np.save(res_dir + "/columns_rearranged_" + suffix + ".npy", columns)
-    torch.save(torch.from_numpy(new_data),res_dir + '/data_subset_' + suffix + ".pth")
     torch.save(torch.from_numpy(target_last),res_dir + '/target_subset_' + suffix + '.pth')
     torch.save(torch.from_numpy(time_sequence), res_dir + '/time_sequence_subset_' + suffix + '.pth')
 

@@ -7,6 +7,8 @@ import gc
 import numpy as np
 import pandas as pd
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 ###############################################################
 ##################### Embedding layers ########################
 ###############################################################
@@ -62,13 +64,16 @@ class LSTMEmbeddingLayer(nn.Module):
 ##############################################################################
 
 class TransformerWithLinearEmbedding(nn.Module):
-    def __init__(self, input_dim, embedding_dim, dropout, pretrained_model, output_dim=1):
+    def __init__(self, input_dim, embedding_dim, dropout, pretrained_model, output_dim=1, num_classes=None):
         super(TransformerWithLinearEmbedding, self).__init__()
         self.embedding = LinearEmbeddingLayer(input_dim, embedding_dim, dropout)
         self.transformer = AutoModel.from_pretrained(pretrained_model, output_attentions=True)
         self.dropout = nn.Dropout(dropout)
-        # Assuming a regression task; change output features for classification
-        self.regressor = nn.Linear(self.transformer.config.hidden_size, output_dim)
+        self.num_classes = num_classes
+        if num_classes is None:
+            self.regressor = nn.Linear(self.transformer.config.hidden_size, output_dim)
+        else:
+            self.classifier = nn.Linear(self.transformer.config.hidden_size, num_classes)
         
     def forward(self, X, attention_mask=None): # X expected shape: [batch_size, seq_length, input_dim]
         # Apply the embedding layer
@@ -79,16 +84,22 @@ class TransformerWithLinearEmbedding(nn.Module):
         pooled_output = outputs.pooler_output # [batch_size, hidden_size]
         attentions = outputs.attentions  # Extract attention weights
 
-        # Apply regression layer
-        return self.regressor(self.dropout(pooled_output)), attentions
+       # Apply regression or classification layer
+        if self.num_classes is None:
+            return self.regressor(self.dropout(pooled_output)), attentions
+        else:
+            return self.classifier(self.dropout(pooled_output)), attentions
 
 class TransformerWithLSTMEmbedding(nn.Module):
-    def __init__(self, input_dim, hidden_dim, lstm_layers, embedding_dim, global_max_length, pretrained_model, output_dim=1):
+    def __init__(self, input_dim, hidden_dim, lstm_layers, embedding_dim, global_max_length, pretrained_model, output_dim=1, num_classes=None):
         super(TransformerWithLSTMEmbedding, self).__init__()
         self.embedding = LSTMEmbeddingLayer(input_dim, hidden_dim, lstm_layers, embedding_dim, global_max_length)
         self.transformer = AutoModel.from_pretrained(pretrained_model, output_attentions=True)
-        # Assuming a regression task; change output features for classification
-        self.regressor = nn.Linear(self.transformer.config.hidden_size, output_dim)
+        self.num_classes = num_classes
+        if num_classes is None:
+            self.regressor = nn.Linear(self.transformer.config.hidden_size, output_dim)
+        else:
+            self.classifier = nn.Linear(self.transformer.config.hidden_size, num_classes)
         
     def forward(self, X, lengths, attention_mask=None): # X expected shape: [batch_size, seq_length, input_dim]
         # Apply the embedding layer
@@ -98,8 +109,11 @@ class TransformerWithLSTMEmbedding(nn.Module):
         outputs = self.transformer(inputs_embeds=X_embeds, attention_mask=attention_mask)
         pooled_output = outputs.pooler_output # [batch_size, hidden_size]
 
-        # Apply regression layer
-        return self.regressor(pooled_output)
+       # Apply regression or classification layer
+        if self.num_classes is None:
+            return self.regressor(pooled_output)
+        else:
+            return self.classifier(pooled_output)
     
 
 ###############################################################

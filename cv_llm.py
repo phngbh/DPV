@@ -192,9 +192,10 @@ def cross_validation(train_size = train_size, val_size = val_size):
         result_loss.append(result_loss_i)
         result_corr.append(result_corr_i)
     
-    return([result_loss,result_corr])
+    return[result_loss,result_corr]
 
-result_llm = cross_validation()
-result_llm = np.array(result_llm, dtype = object)
-np.save(res_dir + "/result_cv_llm_" +suffix + ".npy", result_llm)
-np.savetxt(res_dir + "/result_cv_llm_" + suffix + ".csv", result_llm, delimiter=",")
+if __name__ == "__main__":
+    result_llm = cross_validation()
+    result_llm = np.array(result_llm, dtype=object)
+    np.save(res_dir + suffix + '.npy', result_llm)
+    np.savetxt(res_dir + suffix + ".csv", result_llm, delimiter=",")

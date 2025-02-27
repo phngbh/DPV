@@ -3,33 +3,34 @@ cv_llm:
   target: 'path/to/target.pth'
   time_seq: 'path/to/time_seq.pth'
   train_size: '1000,2000,3000'
-  val_size: 500
+  val_size: 2000
   dropout: 0.5
   hidden_dim: 128
-  lstm_layers: 2
+  lstm_layers: 2 # In case of an LSTM embedding layer
   lr: 0.001
   weight_decay: 0.01
   epochs: 50
-  patience: 10
+  patience: 10 # Early stopping parameters 
   res_dir: 'path/to/results'
   suffix: 'experiment1'
   pretrained_model: 'bert-base-uncased'
 
 cv_llm_slidWindows:
-  data: 'path/to/data'
-  target: 'path/to/target'
-  time_seq: 'path/to/time_seq'
-  train_size: '1000,2000,3000'
-  val_size: 500
-  dropout: 0.5
-  hidden_dim: 128
-  lstm_layers: 2
-  lr: 0.001
-  weight_decay: 0.01
-  epochs: 50
-  patience: 10
-  res_dir: 'path/to/results'
-  suffix: 'experiment1'
+  data_prefix: 'prefix/to/data'
+  target: '/path/to/target.pth'
+  time_seq: '/path/to/time_sequence.pth'
+  last_pos: '0,1,2,3,4'
+  train_size: 14500
+  val_size: 2000
+  dropout: 0.7
+  hidden_dim: 50
+  lstm_layers: 2 # In case of an LSTM embedding layer
+  lr: 2e-5
+  weight_decay: 5e-3
+  epochs: 150
+  patience: 30 # Early stopping parameters 
+  res_dir: '/path/to/results/'
+  suffix: 'result_suffix'
   pretrained_model: 'bert-base-uncased'
 
 cv_xgb_slidWindows:
