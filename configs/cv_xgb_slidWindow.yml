@@ -1,0 +1,22 @@
+data_prefix: "/path/to/prefix_"   # script will append "0.pth", "1.pth", ...
+target: "/path/to/y.pt"
+subset_size: 1000
+train_size: 200
+fs_sample: 1000
+feature_k: 2000
+var_thresh: 1e-5
+
+n_windows: 15
+n_resamples: 5
+seed: 93
+
+res_dir: "./results/"
+tmp_dir: "./tmp/"
+suffix: "xgb_slidwin"
+
+# BO options
+best_params: null         # path to pickle with best params, or null
+run_bo: false             # set true to run Optuna BO when no best_params path provided
+n_trials: 100
+random_state: 93
+n_jobs: 8

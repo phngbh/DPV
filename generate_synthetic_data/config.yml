@@ -1,16 +1,17 @@
-LSTM_VAE:
-  data: "path/to/data.npy"
-  seq_len: 100
-  time_seq: "path/to/time_seq.npy"
-  input_size: 50
-  hidden_size: 100
-  latent_size: 20
-  num_layers: 2
-  data_type: "numeric"
-  batch_size: 32
+run_lstm_vae:
+  data: "/path/to/padded_data.npy"        # original padded data array (list/array of (T,F) per sample)
+  time_seq: "/path/to/time_seq.npy"       # per-sample valid lengths
+  seq_len: 50
+  input_size: 10                          # number of channels excluding ID column
+  hidden_size: 128
+  latent_size: 16
+  num_layers: 1
+  batch_size: 64
   epoch: 50
   learning_rate: 0.001
-  res_dir: "path/to/results/"
+  data_type: "numeric"                    # "numeric" or "discrete"
+  res_dir: "./results/lstm_vae/"
+  gen_batch_size: 200
 
 make_example_csv:
   data_dir: "path/to/generated_data/"

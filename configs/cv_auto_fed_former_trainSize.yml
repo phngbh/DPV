@@ -1,0 +1,60 @@
+# Configuration for BO (stage1) + CV-by-train-size (stage2) using Autoformer / FEDformer adapters
+seed: 42
+
+paths:
+  data_dir: "/path/to/X.pt"           # torch tensor (N, T, F)
+  target_dir: "/path/to/y.pt"         # torch tensor (N,)
+  time_seq_path: "/path/to/time_seq.pt"  # optional (used to build padding mask)
+  res_dir: "./results/auto_fed/"
+  tmp_dir: "./tmp/auto_fed/"
+
+data:
+  replace_left_padding: true
+  time_idx: 0
+  backfill_time_linearly: true
+  time_seq_offset: 5
+
+model:
+  type: "autoformer"                  # "autoformer" or "fedformer"
+  repo_path: "/path/to/official/repo" # path to official repo root (contains models)
+  pred_len: 1
+  label_len: 3
+  modes: 8
+  mode_select: "low"
+  embed: "fixed"
+  freq: "h"
+
+bo:
+  trials: 40
+  d_model_choices: [64, 128, 256]
+  n_heads_choices: [4, 8]
+  e_layers_range: [1, 3]
+  d_ff_choices: [256, 512, 1024]
+  dropout_range: [0.0, 0.3]
+  lr_range: [1e-4, 1e-3]
+  weight_decay_range: [1e-6, 1e-3]
+  moving_avg_choices: [25, 35]
+  factor_choices: [2, 3, 4]
+  # optional label_len choices for BO
+  label_len_choices: [1, 2, 3]
+
+stage1:
+  bo_pool_n: 1000        # number of samples reserved for BO pool (after cv_pool_n)
+  bo_train_n: 400        # number picked from bo_pool_n and used for BO training+val
+  bo_train_ratio: 0.8    # fraction of bo_train_n used for train in BO
+
+stage2:
+  cv_pool_n: 1000        # number of samples used for CV-by-size (must be <= total samples)
+  cv_val_n: 200          # validation size inside CV pool for each run
+  train_sizes: [50, 100, 200]
+  repeats_per_size: 5
+  save_ft_checkpoints: false
+
+train:
+  batch_size: 32
+  max_epochs: 60
+  patience: 6
+  early_stopping: true
+  min_delta: 0.0
+  lr: 1e-3
+  weight_decay: 1e-4

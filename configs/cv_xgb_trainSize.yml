@@ -1,0 +1,25 @@
+data: "/path/to/X.pt"                      # torch tensor file, expected shape (N, T, F)
+target: "/path/to/y.pt"                    # torch tensor file, shape (N,)
+optim_size: 1000                           # subset size used for Bayesian optimization
+optim_limit: 1000                          # cap of samples used for BO feature selection
+train_size: "50,100,200"                   # comma-separated list of train sizes for CV
+res_dir: "./results/"                      # directory to save CV results
+tmp_dir: "./tmp/"                          # directory to save BO artifacts
+suffix: "xgb_experiment"                   # filename suffix for outputs
+
+# BO / CV settings
+n_trials: 100                              # Optuna trials
+n_resamples: 5                             # number of CV repeats per train size
+seed: 93                                   # RNG seed for reproducibility
+n_jobs: 8                                  # parallel workers for XGBoost / sklearn
+
+# feature selection / preprocessing
+feature_k: 2000                            # number of top features to keep via mutual information
+var_thresh: 1e-5                           # variance threshold value before MI selection
+
+# runtime / performance
+batch_size: null                           # not used, kept for parity with other configs
+n_epochs: null                             # not used (XGBoost)
+
+# optional: path to previously found best params (pickle). Set null to run BO.
+best_params: null

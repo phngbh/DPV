@@ -416,7 +416,9 @@ def preprocessing_data(data, feature_info, mean_mode, result_dir, suffix):
     dataX = []
     pat_inf_arr = []
     
+    quotient = len(set(data['PID'])) // 1000
     count = 0
+    sub_count = 0
     for i in set(data['PID']):
             
         sub = data[data['PID'] == i].sort_values(by = 'auf_dat')
@@ -506,36 +508,37 @@ def preprocessing_data(data, feature_info, mean_mode, result_dir, suffix):
             pat_inf_arr.append(patient_info)
         
         # Save each batch of 1000 samples
-        # if 0 < count < 82001 and count % 1000 == 0: # The iteration # divided by 1000
-        #     # if count == 10000:
-        #     #     # Reset the list
-        #     #     dataX = []
-        #     #     pat_inf_arr = []
-        #     # else:
-        #     # Save data batch
-        #     dataX = np.array(dataX, dtype=object)
-        #     np.save('/home/phong.nguyen/processed_data/processed_' + str(count) + ".npy", dataX)
-        #     pat_inf_arr = np.array(pat_inf_arr, dtype=object)
-        #     np.save('/home/phong.nguyen/processed_data/patient_info' + str(count) + '.npy', pat_inf_arr)
+        if count > 0 and count % 1000 == 0 and sub_count < quotient: # The iteration # divided by 1000
+            # if count == 10000:
+            #     # Reset the list
+            #     dataX = []
+            #     pat_inf_arr = []
+            # else:
+            # Save data batch
+            dataX = np.array(dataX, dtype=object)
+            np.save('/home/phong.nguyen/processed_data/processed_' + str(sub_count) + ".npy", dataX)
+            pat_inf_arr = np.array(pat_inf_arr, dtype=object)
+            np.save('/home/phong.nguyen/processed_data/patient_info' + str(sub_count) + '.npy', pat_inf_arr)
 
-        #     # Reset the list
-        #     dataX = []
-        #     pat_inf_arr = []
+            # Reset the list
+            dataX = []
+            pat_inf_arr = []
+            sub_count += 1
             
-        count = count + 1
+        count += 1
 
     print('Done.')
     print('Saving results')
     # Save data batch
-    # dataX = np.array(dataX, dtype=object)
-    # np.save('/home/phong.nguyen/processed_data/processed_' + str(count-1) + ".npy", dataX)
-    # pat_inf_arr = np.array(pat_inf_arr, dtype=object)
-    # np.save('/home/phong.nguyen/processed_data/patient_info' + str(count-1) + '.npy', pat_inf_arr)
     dataX = np.array(dataX, dtype=object)
+    np.save('/home/phong.nguyen/processed_data/processed_' + str(count-1) + ".npy", dataX)
     pat_inf_arr = np.array(pat_inf_arr, dtype=object)
-    np.save('/home/phong.nguyen/processed_data.npy', dataX)
-    np.save('/home/phong.nguyen/data_columns.npy', final_array_column)
-    np.save('/home/phong.nguyen/patient_info.npy', pat_inf_arr)
+    np.save('/home/phong.nguyen/processed_data/patient_info' + str(count-1) + '.npy', pat_inf_arr)
+    # dataX = np.array(dataX, dtype=object)
+    # pat_inf_arr = np.array(pat_inf_arr, dtype=object)
+    # np.save('/home/phong.nguyen/processed_data.npy', dataX)
+    # np.save('/home/phong.nguyen/data_columns.npy', final_array_column)
+    # np.save('/home/phong.nguyen/patient_info.npy', pat_inf_arr)
     
     print('Finishing time: ' + str(datetime.now().time()) )
     
@@ -767,3 +770,101 @@ def make_data_bins(data, bin_width = 10):
     
     return transformed_data
 
+### Utils functions
+def unzip_file(file_path, destination_path):
+    with zipfile.ZipFile(file_path, 'r') as zip_ref:
+        zip_ref.extractall(destination_path)
+
+def split_array_by_row_counts(array, row_counts):
+  """Splits a 2D array into sub-arrays based on row counts.
+
+  Args:
+    array: The input 2D array.
+    row_counts: A list of integers representing the number of rows for each sub-array.
+
+  Returns:
+    A list of arrays, where each sub-array has the specified number of rows.
+  """
+  split_arrays = []
+  start_idx = 0
+  for row_count in row_counts:
+      end_idx = start_idx + row_count
+      split_arrays.append(array[start_idx:end_idx])
+      start_idx = end_idx
+  return split_arrays
+
+def copy_specific_files(source_folder, destination_folder, file_names):
+  """Copies specified files from source_folder to destination_folder.
+
+  Args:
+    source_folder: The path to the source folder.
+    destination_folder: The path to the destination folder.
+    file_names: A list of file names to copy.
+  """
+  for file_name in file_names:
+    source_path = os.path.join(source_folder, file_name)
+    destination_path = os.path.join(destination_folder, file_name)
+    if os.path.isfile(source_path):
+      shutil.copy2(source_path, destination_path)
+      print(f"Copied {file_name} to {destination_folder}")
+    else:
+      print(f"File not found: {file_name}")
+
+def get_mean_std(array, indices = None, include_first = True):
+  """
+  Calculates the mean and standard deviation of an array.
+
+  Args:
+    array: The input array.
+    indices: The columns to process. If None, all columns are processed.
+    include_first: Whether to include the first column in the calculation.
+
+  Returns:
+    A tuple containing the mean and standard deviation of the array.
+  """
+  # Compute means and standard deviations of the features
+  if indices is None:
+    mean = np.mean(array, axis=0)
+    std = np.std(array, axis=0)
+    final_indices = np.arange(len(mean))
+  else:
+    mean = np.mean(array[:,indices], axis=0)
+    std = np.std(array[:,indices], axis=0)
+    final_indices = indices
+  if not include_first:
+    mean = mean[1:]
+    std = std[1:]
+    final_indices = final_indices[1:]
+  print(f'The number of features is {len(mean)}')
+
+  # Look for non-uniform variables
+  nonzero_stds_indices = np.where((std != 0))[0]
+  final_indices = final_indices[nonzero_stds_indices]
+
+  # Filter for non-uniform variables
+  mean = mean[nonzero_stds_indices]
+  std = std[nonzero_stds_indices]
+  print(f'The number of non-uniform features is {len(mean)}')
+
+  # Add the first column back to final indices
+  final_indices = np.insert(final_indices, 0, 0)
+
+  return mean, std, final_indices
+
+def split_array_by_row_counts(array, row_counts):
+  """Splits a 2D array into sub-arrays based on row counts.
+
+  Args:
+    array: The input 2D array.
+    row_counts: A list of integers representing the number of rows for each sub-array.
+
+  Returns:
+    A list of arrays, where each sub-array has the specified number of rows.
+  """
+  split_arrays = []
+  start_idx = 0
+  for row_count in row_counts:
+      end_idx = start_idx + row_count
+      split_arrays.append(array[start_idx:end_idx])
+      start_idx = end_idx
+  return split_arrays

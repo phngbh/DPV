@@ -1,0 +1,38 @@
+# data files (torch .pt / .pth)
+data: "/path/to/X.pt"               # tensor shape (N, T, F)
+target: "/path/to/y.pt"             # tensor shape (N,)
+time_seq: "/path/to/time_sequence.pt"
+
+# how many first timesteps are removed in script (legacy trimming)
+trim_first_timesteps: 4
+time_seq_offset: 0                  # value subtracted from loaded time sequence
+
+# optimization subset used for BO (if run_bo true) and splitting
+optim_size: 1000
+train_size: 200
+val_size: 200
+test_size: 200                       # final test set size for single-run
+
+# I/O / outputs
+res_dir: "./results/"
+tmp_dir: "./tmp/"
+suffix: "prime_experiment"
+
+# training
+batch_size: 16
+epochs: 40
+patience: 5
+
+# BO / hyperparameter search
+use_lora: false
+run_bo: false                        # set true to run Optuna BO on optimization subset
+best_params: null                    # path to .pkl best params (optional, overrides run_bo)
+n_trials: 50
+
+# model / pretrained LLM
+pretrained_model: "facebook/llama-7b"
+num_classes: null                    # null => regression, 2 => binary, >2 => multiclass
+
+# misc
+seed: 93
+max_seq_len: 35                      # attention mask length (defaults to data seq len if not set)

@@ -1,0 +1,14 @@
+min_seq_len: 25
+max_seq_len: 50
+rearranged_columns: 'path/to/rearraged_columns.npy'
+standardized_data: 'path/to/standardized_data_list.npz'
+patient_info: 'path/to/patient_info.npy'
+new_target_related_columns: 'path/to/new_target_related_columns.npy'
+target_column: 4 # Index of the target column in the rearranged data
+missing_target_column: 493 # Index of the target missing info column in the rearranged data
+subset: 35000
+make_sliding_windows: True # Whether to make slidding windows or not
+max_prediction_window: 14  # If make_slidding_windows==true, set the max number of time points spanning the prediction window
+remove_rows: '0,1,2,3,4,5,6,7,8,9,10,11,12,13,14'     # If make_slidding_windows==true, where is the prediction point relative to the target point (0 for immdiately before, 1 two timepoints before and so on)
+input_dir: "path/to/inputs/"
+suffix: "suffix"

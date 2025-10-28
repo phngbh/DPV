@@ -1,0 +1,18 @@
+trained_model: "/path/to/trained_model.pth"     # torch state dict or dict with 'state_dict'
+data: "/path/to/analysis_dataset.pth"           # torch file containing tensors for TensorDataset (X, time_seq?, attention_mask?, y?)
+res_dir: "./results/integrated_grads/"
+pretrained_model: "facebook/llama-7b"
+best_params: "/path/to/best_params.pkl"         # pickle with best hyperparams used to build model
+num_classes: null                               # null => regression, 2 => binary, >2 => multiclass
+suffix: "experiment1"
+
+# optional filtering / sampling
+filter_seq_len: null    # integer to restrict samples by time_seq length, or null
+max_samples: 1000       # max number of samples to process for IG
+baseline_mode: "zero"   # "zero" or "mean" (can be overridden with CLI --baseline_mode)
+seed: 93
+
+# inference / IG options
+steps: 50
+batch_size: 16
+use_abs_avg: false

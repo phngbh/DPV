@@ -1,0 +1,26 @@
+data: "/path/to/X.pt"
+target: "/path/to/y.pt"
+time_seq: "/path/to/time_sequence.pt"
+time_seq_offset: 5        # subtract from loaded time sequence if needed
+max_seq_len: 45           # attention mask length (defaults to data seq len)
+optim_size: 1000
+val_size: 200
+
+res_dir: "./results/"
+tmp_dir: "./tmp/"
+suffix: "transformer_experiment"
+
+batch_size: 16
+
+n_trials: 40
+n_resamples: 5
+epochs: 40
+patience: 5
+
+best_params: null         # path to existing best-params .pkl (or null to run Optuna BO)
+train_size: "50,100,200"  # comma-separated list of train sizes to evaluate
+
+num_classes: null         # null for regression, 2 for binary classification, >2 for multiclass
+
+# optional: random seed for reproducibility
+seed: 93

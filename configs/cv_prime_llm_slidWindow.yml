@@ -1,0 +1,32 @@
+# model / data
+pretrained_model: "facebook/llama-7b"
+data_prefix: "/path/to/data/prefix_"    # script will append "0.pth", "1.pth", ...
+target: "/path/to/targets.pt"
+time_seq: "/path/to/time_sequence.pt"
+time_seq_offset: 15                      # subtracts some of the last time points from time sequence
+
+# sampling / splits
+subset_size: 1000
+train_size: 200
+val_size: 200
+
+# training / optimization
+batch_size: 16
+epochs: 40
+patience: 5
+
+# Bayesian optimization / LoRA
+use_lora: true
+best_params: "/path/to/best_params.pkl"  # path to best_params .pkl; set null to run BO (if script supports)
+
+# evaluation / resampling
+n_resamples: 5
+
+# IO / bookkeeping
+res_dir: "./results/"
+tmp_dir: "./tmp/"
+suffix: "experiment1"
+
+# task specifics
+num_classes: null      # null for regression, 2 for binary classification, >2 for multiclass
+max_seq_len: 35        # attention mask length used when constructing mask (defaults to data seq len)
