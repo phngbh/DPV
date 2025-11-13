@@ -14,7 +14,7 @@ from scipy.stats import pearsonr
 import optuna
 
 from models.transformer import Transformer
-from scripts.train_utils import train_model, objective_generic
+from experiments.train_utils import train_model, objective_generic
 
 print('Start running script')
 print('Starting time: ' + str(datetime.now().time()))

@@ -16,7 +16,7 @@ from scipy.stats import pearsonr
 import optuna
 
 from models.prime_llm import PRIME_LLM 
-from scripts.train_utils import train_model, objective_generic
+from experiments.train_utils import train_model, objective_generic
 
 print('Start running script')
 print('Starting time:', str(datetime.now().time()))
@@ -74,12 +74,6 @@ X = torch.load(data_path)
 X = X[:, 4:, :]  # keep legacy trimming
 y = torch.load(target_path)
 time_sequence = torch.load(time_seq_path) - cfg.get('time_seq_offset', 0)
-
-# filter invalid samples
-keep_idx = torch.where(y > -4)[0]
-X = X[keep_idx]
-y = y[keep_idx]
-time_sequence = time_sequence[keep_idx]
 
 print(f"Samples remaining: {X.size(0)} | X shape: {X.shape}")
 

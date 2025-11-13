@@ -14,7 +14,7 @@ from scipy.stats import pearsonr
 from transformers import AutoConfig
 
 from models.prime_llm import PRIME_LLM
-from scripts.train_utils import train_model, objective_generic
+from experiments.train_utils import train_model, objective_generic
 
 print('Start running script')
 print('Starting time: ' + str(datetime.now().time()))

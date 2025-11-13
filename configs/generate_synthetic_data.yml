@@ -1,0 +1,34 @@
+run_lstm_vae:
+  data: "/path/to/padded_data.npy"        # numpy array shape (N, T, F) or list-like stackable
+  time_seq: "/path/to/time_seq.npy"       # per-sample valid lengths (N,)
+  seq_len: 50
+  input_size: 10                          # number of features per timestep (excluding ID column)
+  hidden_size: 128
+  latent_size: 16
+  num_layers: 1
+  batch_size: 64
+  epoch: 50
+  learning_rate: 0.001
+  data_type: "numeric"                    # "numeric" or "discrete" (decoder activation)
+  res_dir: "./results/lstm_vae/"
+  gen_batch_size: 200
+
+  # feature bookkeeping (indices relative to per-timestep input features, i.e. after ID column)
+  numeric_cols: [0,1,2,3,4]               # numeric feature column indices
+  discrete_cols: [5,6]                    # binary / categorical columns that should be calibrated & binarized
+  static_cols: [0,1]                      # indices of features that are static per patient (used as conditioning)
+
+  # train/test split, reproducibility
+  test_fraction: 0.2
+  seed: 42
+
+make_example_csv:
+  data_dir: "path/to/generated_data/"
+  columns: "path/to/columns.npy"
+  pat_inf: "path/to/pat_inf.npy"
+  num_col_names: "path/to/num_col_names.npy"
+  mis_num_col_names: "path/to/mis_num_col_names.npy"
+  dis_col_names: "path/to/dis_col_names.npy"
+  mis_dis_col_names: "path/to/mis_dis_col_names.npy"
+  time_seq: "path/to/time_seq.npy"
+  res_dir: "path/to/results/"
